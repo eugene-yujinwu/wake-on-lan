@@ -7,6 +7,7 @@ import argparse
 import netifaces
 import subprocess
 import sys
+import time
 
 def request(method, url, retry=3, **kwargs):
     """Constructs and sends a :class:`Request <Request>`.
@@ -82,10 +83,12 @@ def get_ip_mac(interface):
 def set_rtc_wake(wake_time):
     # set the wake time
     # command = f"echo {wake_time} > /sys/class/rtc/rtc0/wakealarm"
+    # TODO: use check_output and command list
     command = f"rtcwake -m no -s {wake_time}"
     subprocess.run(command, shell=True, check=True)
 
 #try to suspend or power off the system
+# TODO: use check_output and command list
 def s3_or_s5_system(type): 
     if type == "s3":
         subprocess.run("systemctl suspend", shell=True, check=True)
@@ -102,8 +105,15 @@ def bring_up_system(way, time):
     else:
         # try to wake up the system by other way
         print("we don't have any way to bring up the system now. Some error happened.")
+        #change to sys.exit("dont have")
         system.exit(1)
         
+# write the time stamp to a file to store the test start time
+def write_timestamp(timestamp_file):
+    with open(timestamp_file, "w") as f:
+        f.write(str(time.time()))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Parse command line arguments.")
     
@@ -113,6 +123,7 @@ def main():
     parser.add_argument("--retry", type=int, default=3, help="Number of retry attempts.")
     parser.add_argument("--waketype", default="g", help="Type of wake operation.")
     parser.add_argument("--powertype", type=str, help="Type of s3 or s5.")
+    parser.add_argument("--timestamp_file", type=str, help="The file to store the timestamp of test start.")
         
     args = parser.parse_args()
     
@@ -165,8 +176,11 @@ def main():
     #bring up the system. The time should be delay*retry*2
     bring_up_system("rtc", delay*retry*2)
     
+    #write the time stamp
+    write_timestamp(args.timestamp_file)
+
     #s3 or s5 the system
-    s3_or_s5_system(args.powertype)
+    # s3_or_s5_system(args.powertype)
     
     print(resp.status_code, resp.json())    
 
