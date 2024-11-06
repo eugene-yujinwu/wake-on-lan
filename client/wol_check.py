@@ -4,9 +4,6 @@ import subprocess
 import re
 import argparse
 
-# timestamp_file = "/tmp/test_start_time"
-# delay = 60
-# max_retries = 10
 
 def get_timestamp(file):
     with open(file, "r") as f:
@@ -14,6 +11,7 @@ def get_timestamp(file):
         print("saved_timestamp:")
         print(saved_timestamp)
     return saved_timestamp
+
 
 def extract_timestamp(log_line):
     pattern = r"(\d+\.\d+)"
@@ -23,6 +21,7 @@ def extract_timestamp(log_line):
         return float(match.group(1))
     else:
         return None
+
 
 def get_suspend_boot_time(type):
     command = ["journalctl", "-b", "0", "--output=short-unix"]
@@ -54,15 +53,22 @@ def get_suspend_boot_time(type):
         print("cannot find 'suspend exit' or boot time in log")
         return None
 
-def main():
-    parser = argparse.ArgumentParser(description="Parse command line arguments.")
 
-    parser.add_argument("--interface", required=True, help="The network interface to use.")
-    # parser.add_argument("--waketype", default="g", help="Type of wake operation.")
+def main():
+    parser = argparse.ArgumentParser(
+        description="Parse command line arguments.")
+
+    parser.add_argument("--interface", required=True,
+                        help="The network interface to use.")
+    # parser.add_argument("--waketype", default="g",
+    # help="Type of wake operation.")
     parser.add_argument("--powertype", type=str, help="Type of s3 or s5.")
-    parser.add_argument("--timestamp_file", type=str, help="The file to store the timestamp of test start.")
-    parser.add_argument("--delay", type=int, default=60, help="Delay between attempts (in seconds).")
-    parser.add_argument("--retry", type=int, default=3, help="Number of retry attempts.")
+    parser.add_argument("--timestamp_file", type=str,
+                        help="The file to store the timestamp of test start.")
+    parser.add_argument("--delay", type=int, default=60,
+                        help="Delay between attempts (in seconds).")
+    parser.add_argument("--retry", type=int, default=3,
+                        help="Number of retry attempts.")
 
     args = parser.parse_args()
 
@@ -83,9 +89,9 @@ def main():
 
     print("time difference:", time_difference)
 
-    # system_back_time - test_start_time > 1.5*max_retries*delay meanse the system was
-    # bring up by rtc other than Wake-on-lan
-    if  time_difference > 1.5*max_retries*delay:
+    # system_back_time - test_start_time > 1.5*max_retries*delay
+    # meanse the system was bring up by rtc other than Wake-on-lan
+    if time_difference > 1.5*max_retries*delay:
         print("time difference is greater than 1.5*max_retries*delay")
         return False
     elif time_difference < 0:
@@ -94,6 +100,7 @@ def main():
     else:
         print("time difference is within the range")
         return True
+
 
 if __name__ == "__main__":
     main()
