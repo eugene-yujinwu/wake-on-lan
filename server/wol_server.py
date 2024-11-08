@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-from logging_utils import init_logger, get_logger
+import logging
 import threading
 import time
 import subprocess
@@ -8,9 +8,12 @@ import shlex
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-# from main import tasker_main
 
 app = FastAPI()
+
+LOG_LEVEL = 'DEBUG'
+logging.basicConfig(level=LOG_LEVEL)
+logger = logging.getLogger(__name__)
 
 
 @app.post("/")
@@ -20,19 +23,10 @@ async def testing(wol_request: dict):
         return JSONResponse(content=jsonable_encoder(ret_server),
                             status_code=200)
     except Exception as e:
-        print(repr(e))
-
-# Do initialize of logger berfore any modules be imported
-# to make sure the style of logger is consistent
-
-# TODO: switch print to logger
-init_logger()
-
-logger = get_logger(__name__)
+        logger.critical(repr(e))
 
 
 def send_wol_command(Wol_Info: dict):
-    # print("send_wol_command:", Wol_Info)
 
     dut_mac = Wol_Info["DUT_MAC"]
     dut_ip = Wol_Info["DUT_IP"]
@@ -43,16 +37,10 @@ def send_wol_command(Wol_Info: dict):
                     "a": f"ping {dut_ip}",
                    }
 
-    # if wake_type not in command_dict.keys:
-    #     print("not a legal wake on lan type")
-    #     return False
-    # print(wake_type)
-    # print((command_dict[wake_type]))
     try:
-        # logger.debug("Executing command: {}".format(command))
-        print((command_dict[wake_type]))
+        logger.debug(f"Wake on lan command: {command_dict[wake_type]}")
         output = subprocess.check_output(shlex.split(command_dict[wake_type]))
-        print(output)
+        logger.debug({output})
 
     except subprocess.CalledProcessError as e:
         logger.error(f"Error occurred in tasker_main: {e}")
@@ -66,27 +54,29 @@ def send_wol_command(Wol_Info: dict):
 
 
 def tasker_main(request: dict) -> dict:
-    # Get the CI Service for all cids
-    # data = request.get_json()
-    data = request
 
-    # TODO: try except this to avoid wol server crash
-    # dut_mac = data['DUT_MAC']
-    dut_ip = data['DUT_IP']
-    delay = data['delay']
-    # retry_times = data['retry_times']
-    # wake_type = data['wake_type']
+    try:
+        # Extracting necessary fields from the request
+        dut_ip = request.get('DUT_IP')
+        delay = request.get('delay')
 
-    logger.info(request)
-    # logger.info(request["DUT_MAC"])
-    logger.info(dut_ip)
+        if not dut_ip or delay is None:
+            logger.error("Missing required fields: DUT_IP or delay")
+            return {'result': 'error', 'message': 'Missing required fields'}
 
-    thread = threading.Thread(target=run_task,
-                              args=(request, delay))
-    thread.start()
+        logger.info(f"Received request: {request}")
+        logger.info(f"DUT_IP: {dut_ip}")
 
-    # add data['result'] = 'success' or data['result'] = repr(e)
-    return request
+        # Starting the task in a separate thread
+        thread = threading.Thread(target=run_task, args=(request, delay))
+        thread.start()
+
+        # Returning success response
+        return {'result': 'success'}
+
+    except Exception as e:
+        logger.exception(f"Error occurred while processing the request: {e}")
+        return {'result': 'error', 'message': str(e)}
 
 
 def is_pingable(ip_address):
@@ -95,10 +85,11 @@ def is_pingable(ip_address):
         command = ["ping", "-c", "1", "-W", "1", ip_address]
         output = subprocess.check_output(command, stderr=subprocess.STDOUT,
                                          universal_newlines=True)
-        print("ping:", output)
+        logger.debug(f"ping: {output}")
         return True
     except subprocess.CalledProcessError:
         # print("ping:", output)
+        logger.debug("An error occurred while ping the DUT: str{e}")
         return False
 
 
@@ -112,25 +103,25 @@ def run_task(data, delay):
 
     for attempt in range(retry_times):
         # logger.info("threading:", dut_mac)
-        print("retry times:", attempt)
+        logger.debug(f"retry times: {attempt}")
         time.sleep(delay)
 
         try:
             # send wol command to the dut_mac
-            print("send wol command to the dut_mac")
+            logger.debug("send wol command to the dut_mac")
             send_wol_command(data)
+
             # delay a little time, ping the DUT,
             # if not up, send wol command again
-
-            # ping the DUT after a delay time,
-            print("ping DUT to see if it had been waked up")
+            logger.debug("ping DUT to see if it had been waked up")
             time.sleep(delay)
             # ping dut
             if is_pingable(dut_ip):
-                print(f"{dut_ip} is pingable, the DUT is back")
+                logger.info(f"{dut_ip} is pingable, the DUT is back")
+                # logger.info("ping DUT to see if it had been waked up")
                 return True
             else:
-                print(f"{dut_ip} is NOT pingable, the DUT is not back, retry")
+                logger.info(f"{dut_ip} is NOT pingable, the DUT is not back.")
 
         except Exception as e:
             logger.error(f"Error occurred in tasker_main: {e}")
